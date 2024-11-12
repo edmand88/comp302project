@@ -2,7 +2,7 @@ let store : (char, int) Hashtbl.t = Hashtbl.create 1000
 
 (*Sorts a list of ('a*list)*)
 let naiveSort (toCount: ('a * int) list) : ('a*int) list =
-  let decreasing (c1, occ1) (c2, occ2) = compare occ1 occ2
+  let decreasing (c1, occ1) (c2, occ2) = compare occ2 occ1
   in
   List.sort decreasing toCount
 
