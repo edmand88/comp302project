@@ -30,3 +30,15 @@ let explode (s: string) : char list =
     else helper (i - 1) (s.[i] :: acc)
   in
   helper (String.length s - 1) []
+
+(*Main function. This function returns the list of occurence of each character given the text*)
+let occurence (s: string) : ('a*int) list =
+  let char_list = explode s;
+  in
+  let char_occ = count_list char_list;
+  in
+  let sorted_char_occ = naiveSort char_occ; 
+  in
+  let _ = Hashtbl.clear store;
+  in
+  sorted_char_occ
