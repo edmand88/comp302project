@@ -1,8 +1,8 @@
 exception NotImplemented
 
 type 'a tree =
-  | Leaf of 'a
-  | Node of 'a tree * 'a tree 
+  | Leaf of int * 'a
+  | Node of int * 'a tree * 'a tree 
               
 type 'a priorityQueue = { 
   enqueue: 'a -> unit;
@@ -18,6 +18,7 @@ let makePriorityQueue =
       match next with
       | [] -> queue:= (!queue)@[toAdd]
       | hd::tl ->
+          (*Modify this for a more generic compare function*)
           if toAdd < hd then
             queue:= (prev@[toAdd]@next)
           else
