@@ -66,12 +66,6 @@ let build_tree (l: ('a * int) list) : ('a tree) =
   in
   insert_all_in_pq leaf_list;
 
-  let extract_int tree =
-    match tree with
-    | Leaf (_, i) -> i
-    | Node (i, _, _) -> i
-  in
-
   let rec builder () : ('a tree) = 
     match pq.dequeue () with
     | None -> failwith "Priority queue is empty"
@@ -81,8 +75,8 @@ let build_tree (l: ('a * int) list) : ('a tree) =
         match pq.dequeue () with
         | None -> tree1
         | Some tree2 ->
-            let int1 = extract_int tree1 in
-            let int2 = extract_int tree2 in
+            let int1 = huffman_node_weight tree1 in
+            let int2 = huffman_node_weight tree2 in
             let node = Node (int1 + int2, tree2, tree1) in
             pq.enqueue node;
             builder ()
