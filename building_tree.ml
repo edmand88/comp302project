@@ -6,7 +6,16 @@ type 'a priorityQueue = {
   enqueue: ('a tree) -> unit;
   dequeue: unit -> ('a tree) option;
   size: unit -> int
-} 
+}
+
+let huffman_node_weight n =
+  match n with
+      Leaf(_, i) -> i
+      | Node (i, _, _) -> i;;
+
+(*node comparer*)
+let huffman_node_comparer n1 n2 =
+  compare (huffman_node_weight n1) (huffman_node_weight n2)
 
 let makePriorityQueue = 
   let queue = ref [] in
@@ -17,26 +26,11 @@ let makePriorityQueue =
     let rec enqueue_helper (toAdd: 'a tree) (prev: 'a tree list) (next: 'a tree list) = 
       match toAdd, next with
       | _ , [] -> queue:= (!queue)@[toAdd]; size := !size + 1
-      | Leaf (c1, occ1), (Leaf (c2, occ2) as hd)::tl ->
-          if occ1 < occ2 then
+      | _ , ( _ as hd)::tl ->
+          if ((huffman_node_comparer toAdd hd) < 0) then
             (queue := prev @ (toAdd :: next); size := !size + 1)
           else
             enqueue_helper toAdd (prev@[hd]) tl
-      | Leaf (c1, occ1), (Node (occ2, _, _) as hd):: tl -> 
-        if occ1 < occ2 then
-          (queue := prev @ (toAdd :: next); size := !size + 1)
-        else
-          enqueue_helper toAdd (prev@[hd]) tl
-      | Node (occ1, _, _), (Node (occ2, _, _) as hd):: tl ->
-        if occ1 < occ2 then
-          (queue := prev @ (toAdd :: next); size := !size + 1)
-        else
-          enqueue_helper toAdd (prev@[hd]) tl
-      | Node (occ1, _, _), (Leaf (c2, occ2) as hd)::tl ->
-        if occ1 < occ2 then
-          (queue := prev @ (toAdd :: next); size := !size + 1)
-        else
-          enqueue_helper toAdd (prev@[hd]) tl
 
     in
     enqueue_helper toAdd [] !queue
