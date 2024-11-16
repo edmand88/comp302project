@@ -95,25 +95,29 @@ let rec build_tree (heap: 'a huff_tree tree): 'a huff_tree option =
   with NoMoreElements -> None             (* if min1 is Empty then the min heap is empty *)
 
 (* build binary prefiex for each character in the leaf node, left branch -> 0 and right -> 1*)
-let prefix_tree (t: 'a huff_tree) (prefix: string) (table: (string, string) Hashtbl.t): unit =
+let prefix_tree (t: 'a huff_tree) (prefix: int list) (table: (string, int list) Hashtbl.t): unit =
   let rec prefix_tree_cont t prefix table (sc: unit -> unit): unit = 
     match t with
     | Leaf (char, _) -> sc (Hashtbl.add table char prefix)
     | HuffNode (l, r, _) -> 
-        prefix_tree_cont l (prefix ^ "0") table 
-        (fun () -> prefix_tree_cont r (prefix ^ "1") table sc)
-  in prefix_tree_cont t "" table (fun () -> ())
+        prefix_tree_cont l (prefix @ [0]) table 
+        (fun () -> prefix_tree_cont r (prefix @ [1]) table sc)
+  in prefix_tree_cont t [] table (fun () -> ())
 
-let generate_huffman_code (occ_list: (string * int) list): (string, string) Hashtbl.t =
+let generate_huffman_code (occ_list: (string * int) list): (string, int list) Hashtbl.t =
   let table = Hashtbl.create 256 in
   let heap = List.fold_left (fun acc (char, freq) -> insert (Leaf (char, freq)) acc) Empty occ_list in
   match build_tree heap with
-  | Some huff_tree -> prefix_tree huff_tree "" table; table
+  | Some huff_tree -> prefix_tree huff_tree [] table; table
   | None -> table
 
   (* Function to print the contents of the Hashtbl *)
 let print_huffman_table table =
-  Hashtbl.iter (fun key value -> Printf.printf "%s: %s\n" key value) table
+  Hashtbl.iter
+    (fun key value ->
+      let value_str = String.concat ", " (List.map string_of_int value) in
+      Printf.printf "%s: [%s]\n" key value_str)
+    table
 
 (* let h1 = Empty;;
 let h2 = insert (Leaf('a', 1)) h1;;
