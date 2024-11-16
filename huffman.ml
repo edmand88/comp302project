@@ -1,6 +1,6 @@
 exception Impossible
 exception NoMoreElements
-
+exception Error
 
 (* Implement priority queue with binary min heap*)
 type 'a tree = Empty | Node of 'a * 'a tree * 'a tree
@@ -24,7 +24,7 @@ let get_size t = get_size_cont t (fun x -> x)
 let rec find_path_to_last_cont (size: int) (sc: direction list -> 'b): 'b =
   if size <= 1 then sc []
   else (if size mod 2 = 0 then find_path_to_last_cont (size/2) (fun r -> sc(r@[L]))
-  else find_path_to_last_cont (size/2) (fun r -> sc(r@[R])))
+        else find_path_to_last_cont (size/2) (fun r -> sc(r@[R])))
 
 let find_path_to_last size = find_path_to_last_cont size (fun x -> x)
 
@@ -46,10 +46,10 @@ let rec insert (x: 'a huff_tree) (heap: 'a huff_tree tree): 'a huff_tree tree =
   let heap_size = get_size heap in
   let path = find_path_to_last (heap_size + 1) in
   let rec insert' (x: 'a huff_tree) (path: direction list) (heap: 'a huff_tree tree) = match heap, path with
-  | Empty, _ -> Node (x, Empty, Empty)
-  | Node (v, l, r), L::tl -> if (compare_helper x v) then Node (v, insert' x tl l, r) else Node (x, insert' v tl l, r)
-  | Node (v, l, r), R::tl -> if (compare_helper x v) then Node (v, l, insert' x tl r) else Node (x, l, insert' v tl r)
-  | Node(_, _, _), [] -> raise Impossible (* if there is at least one node, then path cannot be empty*)
+    | Empty, _ -> Node (x, Empty, Empty)
+    | Node (v, l, r), L::tl -> if (compare_helper x v) then Node (v, insert' x tl l, r) else Node (x, insert' v tl l, r)
+    | Node (v, l, r), R::tl -> if (compare_helper x v) then Node (v, l, insert' x tl r) else Node (x, l, insert' v tl r)
+    | Node(_, _, _), [] -> raise Impossible (* if there is at least one node, then path cannot be empty*)
   in insert' x path heap
 
   (* get and remove last node in the heap *)
@@ -79,32 +79,32 @@ let rec remove_min (heap: 'a huff_tree tree): 'a huff_tree * 'a huff_tree tree =
       let path = find_path_to_last heap_size in
       let (last_node, new_heap) = get_last_node heap path in
       (v, heapify (match new_heap with
-        | Empty -> Node (last_node, Empty, Empty)
-        | Node (v, l, r) -> Node (last_node, l, r)))
+           | Empty -> Node (last_node, Empty, Empty)
+           | Node (v, l, r) -> Node (last_node, l, r)))
 
 (* build huffman tree from a min heap *)
 let rec build_tree (heap: 'a huff_tree tree): 'a huff_tree option = 
   try
     let min1, heap1 = remove_min heap in 
     try
-        let min2, heap2 = remove_min heap1 in
+      let min2, heap2 = remove_min heap1 in
         (* merge the two trees with least frequencies by creating a parent node with the sum of their frequencies*)
-        let new_node = HuffNode (min1, min2, (get_huffman_node_weight min1 + get_huffman_node_weight min2)) in
-        build_tree (insert new_node heap2)
+      let new_node = HuffNode (min1, min2, (get_huffman_node_weight min1 + get_huffman_node_weight min2)) in
+      build_tree (insert new_node heap2)
     with NoMoreElements -> Some min1      (* if min2 is Empty then return the final huffman tree*)
   with NoMoreElements -> None             (* if min1 is Empty then the min heap is empty *)
 
 (* build binary prefiex for each character in the leaf node, left branch -> 0 and right -> 1*)
-let prefix_tree (t: 'a huff_tree) (prefix: int list) (table: (string, int list) Hashtbl.t): unit =
+let prefix_tree (t: 'a huff_tree) (prefix: int list) (table: (char, bool list) Hashtbl.t): unit =
   let rec prefix_tree_cont t prefix table (sc: unit -> unit): unit = 
     match t with
     | Leaf (char, _) -> sc (Hashtbl.add table char prefix)
     | HuffNode (l, r, _) -> 
-        prefix_tree_cont l (prefix @ [0]) table 
-        (fun () -> prefix_tree_cont r (prefix @ [1]) table sc)
+        prefix_tree_cont l (prefix @ [false]) table 
+          (fun () -> prefix_tree_cont r (prefix @ [true]) table sc)
   in prefix_tree_cont t [] table (fun () -> ())
 
-let generate_huffman_code (occ_list: (string * int) list): (string, int list) Hashtbl.t =
+let generate_huffman_code (occ_list: (char * int) list): (char, bool list) Hashtbl.t =
   let table = Hashtbl.create 256 in
   let heap = List.fold_left (fun acc (char, freq) -> insert (Leaf (char, freq)) acc) Empty occ_list in
   match build_tree heap with
@@ -115,16 +115,120 @@ let generate_huffman_code (occ_list: (string * int) list): (string, int list) Ha
 let print_huffman_table table =
   Hashtbl.iter
     (fun key value ->
-      let value_str = String.concat ", " (List.map string_of_int value) in
-      Printf.printf "%s: [%s]\n" key value_str)
+       let value_str = String.concat ", " (List.map string_of_int value) in
+       Printf.printf "%s: [%s]\n" key value_str)
     table
+    
+    (*Function to convert char list into the encoded string*)
+let convert_chars (input: char list) (hash: (char, bool list) Hashtbl.t) : bytes =
+  (* Calculate total bits needed for the compressed data *)
+  let total_bits = 
+    List.fold_left (fun acc c ->
+        let code = Hashtbl.find hash c in
+        acc + List.length code
+      ) 0 input
+  in
+  
+  (* Creates the necessary output size *) 
+  let length = ((total_bits + 7) / 8) in
+  let output = Bytes.create length in
+  
+  (* Set a specific bit in a byte *)
+  let set_bit byte_idx bit_idx value =
+    let curr_byte = Bytes.get output byte_idx in
+    let new_byte = 
+      if value then
+        Char.chr (Char.code curr_byte lor (1 lsl (7 - bit_idx)))
+      else
+        curr_byte
+    in
+    Bytes.set output byte_idx new_byte
+  in
+  
+  (* Initialize output bytes to 0 *)
+  Bytes.fill output 0 length (Char.chr 0);
+  
+  (* Convert each input char to its Huffman code and write to output *)
+  let bit_pos = ref 0 in
+  List.iter (fun c ->
+      let code = Hashtbl.find hash c in
+      List.iter (fun bit ->
+          let byte_idx = !bit_pos / 8 in
+          let bit_idx = !bit_pos mod 8 in
+          set_bit byte_idx bit_idx bit;
+          incr bit_pos
+        ) code
+    ) input;
+  
+  output
+;;
 
-(* let h1 = Empty;;
-let h2 = insert (Leaf('a', 1)) h1;;
-let h3 = insert (Leaf('b', 2)) h2;;
-let h4 = insert (Leaf('c', 10)) h3;;
-let h5 = insert (Leaf('d', 5)) h4;;
-let h6 = insert (Leaf('e', 7)) h5;;
-let h7 = insert (Leaf('f', 8)) h6;;
+let decode_bytes (input: bytes) (tree: char huff_tree) : string =
+  let len = Bytes.length input in
+  let total_bits = len * 8 in
+  
+  (* Helper to get a specific bit from the input bytes *)
+  let get_bit pos =
+    let byte_idx = pos / 8 in
+    let bit_idx = pos mod 8 in
+    if byte_idx >= len then false
+    else
+      let byte = Bytes.get input byte_idx in
+      (Char.code byte land (1 lsl (7 - bit_idx))) <> 0
+  in 
+  
+  (* Walk the tree following bits until we hit a leaf, then start over *)
+  let rec decode_next bit_pos curr_node acc =
+    match curr_node with
+    | Leaf (c, _) -> 
+      (* Leaf node - add character and if we have more bits, continue from root *)
+        if bit_pos >= total_bits then
+        (* End of input - convert accumulated chars to string, including current char *)
+          String.of_seq (List.to_seq (acc @ [c]))
+        else
+          decode_next bit_pos tree (acc @ [c])
+    | HuffNode (left, right, _) -> 
+        (match get_bit bit_pos with
+         | true -> decode_next (bit_pos + 1) right acc
+         | false -> decode_next (bit_pos + 1) left acc)
 
-let r1 = remove_min h7;; *)
+  in
+  
+  decode_next 0 tree []
+;;
+
+let encode_string (input: string) : (string * char huff_tree) = 
+  let explode (s: string) : char list =
+    let rec helper i acc =
+      if i < 0 then acc
+      else helper (i - 1) (s.[i] :: acc)
+    in
+    helper (String.length s - 1) []
+  in
+    
+  let count_chars (str: string) : (char * int) list = 
+    let counts = Hashtbl.create 256 in 
+    let increment_char c =
+      match Hashtbl.find_opt counts c with
+      | None -> Hashtbl.add counts c 1
+      | Some num -> Hashtbl.replace counts c (num + 1)
+    in
+  
+    String.iter increment_char str; 
+    Hashtbl.fold (fun k v acc -> (k, v) :: acc) counts []
+  in
+  
+  let occ_list = count_chars input in
+  let table = Hashtbl.create 256 in
+  let heap = List.fold_left (fun acc (char, freq) -> insert (Leaf (char, freq)) acc) Empty occ_list in
+  let tree = build_tree heap in
+  match tree with
+  | None -> raise Error
+  | Some tree2 ->
+      prefix_tree tree2 [] table;
+      let encoded_string = convert_chars (explode input) table in
+      (Bytes.to_string encoded_string, tree2)
+;;
+
+let decode_string (input: string) (t: char huff_tree) : string =
+  decode_bytes (Bytes.of_string input) t
