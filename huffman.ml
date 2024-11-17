@@ -109,15 +109,17 @@ let generate_huffman_code (occ_list: ('a * int) list): ('a, bool list) Hashtbl.t
   let heap = List.fold_left (fun acc (char, freq) -> insert (Leaf (char, freq)) acc) Empty occ_list in
   match build_tree heap with
   | Some huff_tree -> prefix_tree huff_tree [] table; table
-  | None -> table
+  | None -> table 
 
-  (* Function to print the contents of the Hashtbl *)
-let print_huffman_table table =
-  Hashtbl.iter
-    (fun key value ->
-       let value_str = String.concat ", " (List.map string_of_int value) in
-       Printf.printf "%s: [%s]\n" key value_str)
-    table
+(* Function to print entries of a (char, bool list) Hashtbl.t *) 
+let print_huffman_table (tbl: (char, bool list) Hashtbl.t) : unit = 
+  let bool_list_to_bit_string (bools: bool list) : string =
+    String.concat "" (List.map (fun b -> if b then "1" else "0") bools)
+  in
+  Hashtbl.iter (fun key value ->
+      let bit_string = bool_list_to_bit_string value in
+      Printf.printf "%c -> %s\n" key bit_string
+    ) tbl
     
     (*Function to convert char list into the encoded string*)
 let convert_tokens (input: char list) (hash: ('a, bool list) Hashtbl.t) : (bytes * int) =
@@ -227,6 +229,7 @@ let encode_string (input: string) : (string * char huff_tree * int) =
   | None -> raise Error
   | Some tree2 ->
       prefix_tree tree2 [] table;
+      print_huffman_table table;
       let (encoded_string, num_bits) = convert_tokens (explode input) table in
       (Bytes.to_string encoded_string, tree2, num_bits)
 ;;
