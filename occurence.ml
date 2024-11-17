@@ -1,10 +1,12 @@
 let store : (char, int) Hashtbl.t = Hashtbl.create 1000
 
-(*Sorts a list of ('a*list)*)
-let naiveSort (toCount: ('a * int) list) : ('a*int) list =
-  let decreasing (c1, occ1) (c2, occ2) = compare occ2 occ1
+(*explode the string into a list of char*)
+let explode (s: string) : char list =
+  let rec helper i acc =
+    if i < 0 then acc
+    else helper (i - 1) (s.[i] :: acc)
   in
-  List.sort decreasing toCount
+  helper (String.length s - 1) []
 
 (*transform a list of 'a to a list with the occurence*)
 let count_list (toCount: 'a list) : ('a * int) list =
@@ -23,13 +25,11 @@ let count_list (toCount: 'a list) : ('a * int) list =
     
   Hashtbl.fold (fun key value acc -> (key, value) :: acc) store []
 
-(*explode the string into a list of char*)
-let explode (s: string) : char list =
-  let rec helper i acc =
-    if i < 0 then acc
-    else helper (i - 1) (s.[i] :: acc)
+(*Sorts a list of ('a*list)*)
+let naiveSort (toCount: ('a * int) list) : ('a*int) list =
+  let decreasing (c1, occ1) (c2, occ2) = compare occ2 occ1
   in
-  helper (String.length s - 1) []
+  List.sort decreasing toCount
 
 (*Main function. This function returns the list of occurence of each character given the text*)
 let occurence (s: string) : ('a*int) list =
