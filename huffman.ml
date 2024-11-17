@@ -95,7 +95,7 @@ let rec build_tree (heap: 'a huff_tree tree): 'a huff_tree option =
   with NoMoreElements -> None             (* if min1 is Empty then the min heap is empty *)
 
 (* build binary prefiex for each character in the leaf node, left branch -> 0 and right -> 1*)
-let prefix_tree (t: 'a huff_tree) (prefix: int list) (table: (char, bool list) Hashtbl.t): unit =
+let prefix_tree (t: 'a huff_tree) (prefix: int list) (table: ('a, bool list) Hashtbl.t): unit =
   let rec prefix_tree_cont t prefix table (sc: unit -> unit): unit = 
     match t with
     | Leaf (char, _) -> sc (Hashtbl.add table char prefix)
@@ -104,7 +104,7 @@ let prefix_tree (t: 'a huff_tree) (prefix: int list) (table: (char, bool list) H
           (fun () -> prefix_tree_cont r (prefix @ [true]) table sc)
   in prefix_tree_cont t [] table (fun () -> ())
 
-let generate_huffman_code (occ_list: (char * int) list): (char, bool list) Hashtbl.t =
+let generate_huffman_code (occ_list: ('a * int) list): ('a, bool list) Hashtbl.t =
   let table = Hashtbl.create 256 in
   let heap = List.fold_left (fun acc (char, freq) -> insert (Leaf (char, freq)) acc) Empty occ_list in
   match build_tree heap with
@@ -120,7 +120,7 @@ let print_huffman_table table =
     table
     
     (*Function to convert char list into the encoded string*)
-let convert_chars (input: char list) (hash: (char, bool list) Hashtbl.t) : bytes =
+let convert_tokens (input: char list) (hash: ('a, bool list) Hashtbl.t) : (bytes * int) =
   (* Calculate total bits needed for the compressed data *)
   let total_bits = 
     List.fold_left (fun acc c ->
@@ -160,12 +160,13 @@ let convert_chars (input: char list) (hash: (char, bool list) Hashtbl.t) : bytes
         ) code
     ) input;
   
-  output
+  (output, total_bits)
 ;;
 
-let decode_bytes (input: bytes) (tree: char huff_tree) : string =
+(*Returns the token list and the amount of bits of the encoded message to deal with padding*)
+let decode_bytes (input: bytes) (tree: 'a huff_tree) (num_bits: int): 'a list =
   let len = Bytes.length input in
-  let total_bits = len * 8 in
+  let total_bits = num_bits in
   
   (* Helper to get a specific bit from the input bytes *)
   let get_bit pos =
@@ -181,10 +182,10 @@ let decode_bytes (input: bytes) (tree: char huff_tree) : string =
   let rec decode_next bit_pos curr_node acc =
     match curr_node with
     | Leaf (c, _) -> 
-      (* Leaf node - add character and if we have more bits, continue from root *)
+      (* Leaf node - add token and if we have more bits, continue from root *)
         if bit_pos >= total_bits then
         (* End of input - convert accumulated chars to string, including current char *)
-          String.of_seq (List.to_seq (acc @ [c]))
+          acc @ [c]
         else
           decode_next bit_pos tree (acc @ [c])
     | HuffNode (left, right, _) -> 
@@ -197,7 +198,7 @@ let decode_bytes (input: bytes) (tree: char huff_tree) : string =
   decode_next 0 tree []
 ;;
 
-let encode_string (input: string) : (string * char huff_tree) = 
+let encode_string (input: string) : (string * char huff_tree * int) = 
   let explode (s: string) : char list =
     let rec helper i acc =
       if i < 0 then acc
@@ -226,9 +227,10 @@ let encode_string (input: string) : (string * char huff_tree) =
   | None -> raise Error
   | Some tree2 ->
       prefix_tree tree2 [] table;
-      let encoded_string = convert_chars (explode input) table in
-      (Bytes.to_string encoded_string, tree2)
+      let (encoded_string, num_bits) = convert_tokens (explode input) table in
+      (Bytes.to_string encoded_string, tree2, num_bits)
 ;;
 
-let decode_string (input: string) (t: char huff_tree) : string =
-  decode_bytes (Bytes.of_string input) t
+let decode_string (input: string) (t: char huff_tree) (num_bits: int): string =
+  let char_list = decode_bytes (Bytes.of_string input) t num_bits in
+  String.of_seq (List.to_seq char_list)
