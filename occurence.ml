@@ -1,4 +1,4 @@
-let store : (char, int) Hashtbl.t = Hashtbl.create 1000
+let store : (char, int) Hashtbl.t = Hashtbl.create 256
 
 (*explode the string into a list of char*)
 let explode (s: string) : char list =
