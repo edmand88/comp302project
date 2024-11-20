@@ -104,12 +104,15 @@ let prefix_tree (t: 'a huff_tree) (prefix: int list) (table: ('a, bool list) Has
           (fun () -> prefix_tree_cont r (prefix @ [true]) table sc)
   in prefix_tree_cont t [] table (fun () -> ())
 
-let generate_huffman_code (occ_list: ('a * int) list): ('a, bool list) Hashtbl.t =
+let generate_huffman_code (occ_list: ('a * int) list): (('a, bool list) Hashtbl.t * 'a huff_tree option) =
   let table = Hashtbl.create 256 in
   let heap = List.fold_left (fun acc (char, freq) -> insert (Leaf (char, freq)) acc) Empty occ_list in
-  match build_tree heap with
-  | Some huff_tree -> prefix_tree huff_tree [] table; table
-  | None -> table 
+  let tree = build_tree heap in 
+  match tree with
+  | Some huff_tree -> 
+      prefix_tree huff_tree [] table; 
+      (table, Some huff_tree)
+  | None -> (table, None)
 
 (* Function to print entries of a (char, bool list) Hashtbl.t *) 
 let print_huffman_table (tbl: (char, bool list) Hashtbl.t) : unit = 
@@ -212,16 +215,12 @@ let encode_generic (input: 'a list) : (string * 'a huff_tree * int) =
     Hashtbl.fold (fun k v acc -> (k, v) :: acc) counts []
   in
   
-  let occ_list = count_elements input in
-  let table = Hashtbl.create 256 in 
-  let heap = List.fold_left (fun acc (elem, freq) -> insert (Leaf (elem, freq)) acc) Empty occ_list in 
-  let tree = build_tree heap in
-  match tree with
+  let (table, tree_opt) = generate_huffman_code (count_elements input) in
+  match tree_opt with
   | None -> raise Error
-  | Some tree2 ->
-      prefix_tree tree2 [] table; 
+  | Some tree ->
       let (encoded_string, num_bits) = convert_tokens input table in
-      (Bytes.to_string encoded_string, tree2, num_bits)
+      (Bytes.to_string encoded_string, tree, num_bits)
 ;;
 
 (* Preprocessor to allow for simpler input arguments *)
@@ -259,7 +258,7 @@ let encode_string_with_table (input: string) : (string * char huff_tree * int) =
     List.iter increment_element elements;
     (* Put hashtable pairs into a list *)
     Hashtbl.fold (fun k v acc -> (k, v) :: acc) counts []
-  in
+  in 
   
   let occ_list = count_elements (explode input) in
   let table = Hashtbl.create 256 in 
